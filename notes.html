@@ -587,10 +587,102 @@ function esc(s) {
 }
 
 /* ================================================================
+   Seed vault — pre-loaded tutorial notes (only when vault is empty)
+   ================================================================ */
+const _D = '2026-04-05';
+const SEED = {
+  'welcome': { created: _D, modified: _D, content:
+"---\ntitle: Welcome\ndate: 2026-04-05\nstatus: active\ntags: [tutorial]\n---\n\n" +
+"You are reading a note. Click **Preview** (tab above) if you have not already.\n\n" +
+"## Basic commands\n\n" +
+"| Action | How |\n|---|---|\n" +
+"| New note | `+ New Note` button, or `Ctrl+N` |\n" +
+"| Save | Automatic — 400 ms after you stop typing |\n" +
+"| Search | Type in the search box on the left |\n" +
+"| Delete | Open a note \u2192 Delete button (warns if other notes link to it) |\n\n" +
+"## This is a tutorial vault\n\n" +
+"Three notes are pre-loaded. Each one uses the feature it describes.\n\n" +
+"- [[Writing Notes]] \u2014 frontmatter, Markdown, wikilinks, tags\n" +
+"- [[Janet and WASM]] \u2014 what runs the logic in this app\n" +
+"- [[Your Vault]] \u2014 where notes live and how to export them\n\n" +
+"Click any link. It opens that note.\n" +
+"Click **Edit** on this note to see its raw source.\n"
+  },
+  'writing-notes': { created: _D, modified: _D, content:
+"---\ntitle: Writing Notes\ndate: 2026-04-05\nstatus: active\ntags: [tutorial, markdown]\n---\n\n" +
+"## Frontmatter\n\n" +
+"Start a note with `---` to attach metadata. All fields are optional.\n\n" +
+"    ---\n    title: My Note\n    date: 2026-04-05\n    status: draft\n" +
+"    tags: [idea, work]\n    aliases: [Shorthand Title]\n    author: you\n    due: 2026-05-01\n    ---\n\n" +
+"The chip bar at the bottom shows tags and status as you type.\n" +
+"Unknown fields are passed through unchanged (per the YANP spec).\n\n" +
+"## Markdown\n\n" +
+"The Preview tab renders standard Markdown:\n" +
+"**bold**, *italic*, `code`, # headings, > blockquotes, - lists.\n\n" +
+"## Wikilinks\n\n" +
+"Type `[[Note Title]]` anywhere. In Preview mode the link resolves\n" +
+"by title \u2192 aliases \u2192 slug.\n\n" +
+"- Solid link \u2014 note exists: [[Welcome]]\n" +
+"- Dashed link \u2014 note missing: [[A Note That Does Not Exist]]\n\n" +
+"Click a dashed link to create the missing note.\n\n" +
+"## Tags\n\n" +
+"Inline tags work anywhere in the body: #tutorial #markdown\n" +
+"They merge with frontmatter tags and appear in the chip bar.\n"
+  },
+  'janet-and-wasm': { created: _D, modified: _D, content:
+"---\ntitle: Janet and WASM\ndate: 2026-04-05\nstatus: active\ntags: [tutorial, janet]\n---\n\n" +
+"## What is Janet?\n\n" +
+"Janet is a small Lisp (janet-lang.org). It has PEG grammars built in,\n" +
+"a C API, and compiles to WebAssembly via Emscripten.\n\n" +
+"## What runs in Janet here?\n\n" +
+"Everything that touches note content runs in Janet, not JavaScript:\n\n" +
+"| Function | Does |\n|---|---|\n" +
+"| `note-slug` | `My Title` \u2192 `my-title` |\n" +
+"| `parse-frontmatter` | reads the `---` YAML block |\n" +
+"| `extract-wikilinks` | PEG grammar finds `[[links]]` |\n" +
+"| `process-wikilinks` | replaces them with `<a>` tags |\n" +
+"| `search-notes` | case-insensitive full-text search |\n" +
+"| `inbound-links` | finds notes linking to a given slug |\n\n" +
+"## How JS calls Janet\n\n" +
+"The Janet runtime runs a REPL. To call a function, JS evaluates:\n\n" +
+"    (print (json/encode (fn arg1 arg2)))\n\n" +
+"Janet prints JSON to stdout. JS captures and parses it.\n\n" +
+"## Where is the Janet source?\n\n" +
+"Open `notes.html` in a text editor and search for `JANET_SRC`.\n" +
+"All the functions above are there, written in plain Janet Lisp.\n"
+  },
+  'your-vault': { created: _D, modified: _D, content:
+"---\ntitle: Your Vault\ndate: 2026-04-05\nstatus: active\ntags: [tutorial]\n---\n\n" +
+"## Where notes are stored\n\n" +
+"Notes live in your browser\u2019s **localStorage** under the key `yanp-vault` \u2014\n" +
+"a JSON object keyed by slug, stored on this origin only.\n\n" +
+"> **Clearing browser data deletes your notes.**\n\n" +
+"Notes do not sync between browsers or devices.\n\n" +
+"## Export\n\n" +
+"Open the browser console (`F12` \u2192 Console tab) and run:\n\n" +
+"    copy(localStorage.getItem('yanp-vault'))\n\n" +
+"This copies your full vault JSON to the clipboard.\n\n" +
+"## Import\n\n" +
+"In the console, paste exported JSON back:\n\n" +
+"    localStorage.setItem('yanp-vault', '...')\n    location.reload()\n\n" +
+"## Origins are separate vaults\n\n" +
+"`localhost:3000` and the live site store notes independently.\n" +
+"Use export/import to move notes between them.\n"
+  }
+};
+
+function seedVault() {
+  if (Object.keys(vault()).length > 0) return;
+  saveVault(SEED);
+}
+
+/* ================================================================
    App init — called from Module.postRun after Janet is ready
    ================================================================ */
 function initApp() {
+  seedVault();
   renderSidebar();
+  selectNote('welcome');
 
   document.getElementById('btn-new').addEventListener('click', () => {
     const t = prompt('Note title:');
