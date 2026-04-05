@@ -89,6 +89,34 @@ main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
 #empty-state p{font-size:18px;font-weight:300}
 #empty-state small{font-size:12px}
 
+/* ── REPL drawer ── */
+#repl-drawer{flex-shrink:0;border-top:1px solid var(--bdr)}
+#repl-toggle{padding:6px 14px;cursor:pointer;display:flex;align-items:center;gap:6px;
+  font-family:'Courier New',monospace;font-size:11px;color:var(--mut);
+  user-select:none;background:var(--sur);transition:color .15s}
+#repl-toggle:hover,#repl-toggle.open{color:var(--acc)}
+#repl-body{display:none;flex-direction:column;gap:8px;padding:10px 14px;background:var(--bg)}
+#repl-body.open{display:flex}
+#repl-in{width:100%;min-height:58px;max-height:140px;padding:8px 10px;resize:vertical;
+  background:var(--sur);color:var(--txt);border:1px solid var(--bdr);border-radius:4px;
+  font-family:'Courier New',monospace;font-size:12px;line-height:1.5;outline:none;tab-size:2}
+#repl-in:focus{border-color:var(--acc)}
+.repl-btns{display:flex;gap:6px}
+#repl-run{padding:5px 14px;background:var(--acc);color:#1e1e2e;border:none;
+  border-radius:4px;cursor:pointer;font-size:12px;font-weight:600}
+#repl-run:hover{filter:brightness(1.1)}
+#repl-clr{padding:5px 10px;background:transparent;color:var(--mut);
+  border:1px solid var(--bdr);border-radius:4px;cursor:pointer;font-size:12px}
+#repl-clr:hover{color:var(--txt);border-color:var(--txt)}
+#repl-out{font-family:'Courier New',monospace;font-size:12px;max-height:110px;
+  overflow-y:auto;border:1px solid var(--bdr);border-radius:4px;
+  padding:8px 10px;background:var(--sur);display:flex;flex-direction:column;gap:6px}
+#repl-out:empty{display:none}
+.rl-in{color:var(--mut);white-space:pre-wrap;word-break:break-all}
+.rl-in::before{content:'> ';color:var(--acc)}
+.rl-out{color:var(--txt);white-space:pre-wrap;padding-left:14px;word-break:break-all}
+.rl-err{color:var(--dan);white-space:pre-wrap;padding-left:14px;word-break:break-all}
+
 ::-webkit-scrollbar{width:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
@@ -136,6 +164,17 @@ status: active
     <div id="empty-state">
       <p>YANP Notes</p>
       <small>Create or select a note to get started</small>
+    </div>
+    <div id="repl-drawer">
+      <div id="repl-toggle">&#9656; REPL</div>
+      <div id="repl-body">
+        <textarea id="repl-in" spellcheck="false" placeholder="(+ 1 2)&#10;Ctrl+Enter to run  &#8593;&#8595; history"></textarea>
+        <div class="repl-btns">
+          <button id="repl-run">Run</button>
+          <button id="repl-clr">Clear</button>
+        </div>
+        <div id="repl-out"></div>
+      </div>
     </div>
   </main>
 </div>
@@ -729,6 +768,60 @@ function initApp() {
       e.preventDefault();
       const t = prompt('Note title:');
       if (t && t.trim()) createNote(t.trim());
+    }
+  });
+
+  // ── REPL drawer ──
+  const replToggle = document.getElementById('repl-toggle');
+  const replBody   = document.getElementById('repl-body');
+  const replIn     = document.getElementById('repl-in');
+  const replOut    = document.getElementById('repl-out');
+  let replHist = [], replHistIdx = -1;
+
+  function janetRun(code) {
+    _cap = true; _outBuf = ''; _errBuf = '';
+    _repl(code + '\n');
+    _cap = false;
+    return { out: _outBuf.trim(), err: _errBuf.trim() };
+  }
+
+  function replExec() {
+    const code = replIn.value.trim();
+    if (!code) return;
+    replHist.unshift(code);
+    replHistIdx = -1;
+    const { out, err } = janetRun(code);
+    const entry = document.createElement('div');
+    entry.innerHTML =
+      `<div class="rl-in">${esc(code)}</div>` +
+      (err ? `<div class="rl-err">${esc(err)}</div>` : '') +
+      (out && !err ? `<div class="rl-out">${esc(out)}</div>` : out ? `<div class="rl-out">${esc(out)}</div>` : '');
+    replOut.appendChild(entry);
+    replOut.scrollTop = replOut.scrollHeight;
+    replIn.value = '';
+  }
+
+  replToggle.addEventListener('click', () => {
+    const open = replBody.classList.toggle('open');
+    replToggle.classList.toggle('open', open);
+    replToggle.innerHTML = (open ? '&#9662;' : '&#9656;') + ' REPL';
+    if (open) replIn.focus();
+  });
+
+  document.getElementById('repl-run').addEventListener('click', replExec);
+  document.getElementById('repl-clr').addEventListener('click', () => { replOut.innerHTML = ''; });
+
+  replIn.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); replExec(); return; }
+    if (e.key === 'ArrowUp' && !e.shiftKey && replHist.length) {
+      e.preventDefault();
+      replHistIdx = Math.min(replHistIdx + 1, replHist.length - 1);
+      replIn.value = replHist[replHistIdx];
+    }
+    if (e.key === 'ArrowDown' && !e.shiftKey) {
+      e.preventDefault();
+      replHistIdx > 0 ? (replHistIdx--, replIn.value = replHist[replHistIdx])
+                      : (replHistIdx = -1, replIn.value = '');
     }
   });
 }
