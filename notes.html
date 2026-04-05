@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YANP Notes</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#1e1e2e;--sur:#24273a;--bdr:#363a4f;
+  --txt:#cad3f5;--mut:#6e738d;
+  --acc:#8aadf4;--dan:#ed8796;--grn:#a6da95
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--txt);
+  font-family:system-ui,-apple-system,sans-serif;font-size:14px}
+
+#loading{position:fixed;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:10px;
+  background:var(--bg);z-index:99;color:var(--mut);font-size:16px}
+#loading small{font-size:12px}
+#loading.hidden{display:none}
+
+#app{display:flex;height:100vh}
+
+aside{width:240px;min-width:240px;height:100%;background:var(--sur);
+  border-right:1px solid var(--bdr);display:flex;flex-direction:column}
+#sidebar-top{padding:10px 12px;display:flex;flex-direction:column;gap:8px;
+  border-bottom:1px solid var(--bdr)}
+#btn-new{padding:7px 10px;background:var(--acc);color:#1e1e2e;border:none;
+  border-radius:5px;cursor:pointer;font-weight:600;font-size:13px}
+#btn-new:hover{filter:brightness(1.1)}
+#search{padding:6px 10px;background:var(--bg);color:var(--txt);
+  border:1px solid var(--bdr);border-radius:5px;font-size:13px;outline:none;width:100%}
+#search:focus{border-color:var(--acc)}
+#note-list{flex:1;overflow-y:auto;padding:4px 0;list-style:none}
+.note-item{padding:8px 14px;cursor:pointer;border-left:3px solid transparent;
+  display:flex;flex-direction:column;gap:2px;transition:background .1s}
+.note-item:hover{background:rgba(138,173,244,.06)}
+.note-item.active{background:rgba(138,173,244,.1);border-left-color:var(--acc)}
+.ni-title{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ni-date{font-size:11px;color:var(--mut)}
+
+main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+#note-header{display:none;padding:0 16px;height:46px;align-items:center;
+  gap:8px;border-bottom:1px solid var(--bdr);flex-shrink:0}
+#note-title{flex:1;font-size:15px;font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#btn-delete{padding:4px 12px;background:transparent;color:var(--dan);
+  border:1px solid var(--dan);border-radius:4px;cursor:pointer;font-size:12px}
+#btn-delete:hover{background:var(--dan);color:var(--bg)}
+
+#tabs{display:none;padding:0 16px;border-bottom:1px solid var(--bdr);flex-shrink:0}
+.tab{padding:8px 14px;background:transparent;color:var(--mut);border:none;
+  border-bottom:2px solid transparent;cursor:pointer;font-size:13px;
+  margin-bottom:-1px;transition:color .15s}
+.tab.active{color:var(--acc);border-bottom-color:var(--acc)}
+
+#pane-edit{flex:1;display:none;flex-direction:column;min-height:0;overflow:hidden}
+#editor{flex:1;width:100%;padding:20px;resize:none;outline:none;
+  background:var(--bg);color:var(--txt);border:none;
+  font-family:'Courier New',Courier,monospace;font-size:14px;line-height:1.65}
+
+#pane-preview{flex:1;overflow-y:auto;padding:20px 24px;display:none}
+.md{max-width:720px;line-height:1.7}
+.md h1,.md h2,.md h3{margin:1.2em 0 .5em;color:var(--txt)}
+.md h1{font-size:1.7em}.md h2{font-size:1.35em}.md h3{font-size:1.1em}
+.md p{margin:.75em 0}
+.md ul,.md ol{padding-left:1.5em;margin:.75em 0}.md li{margin:.3em 0}
+.md code{background:var(--sur);padding:2px 6px;border-radius:3px;font-size:.88em}
+.md pre{background:var(--sur);padding:14px 16px;border-radius:6px;
+  overflow-x:auto;margin:.75em 0}
+.md pre code{background:none;padding:0}
+.md blockquote{border-left:3px solid var(--bdr);padding-left:14px;
+  color:var(--mut);margin:.75em 0}
+.md a{color:var(--acc);text-decoration:none}
+.md a:hover{text-decoration:underline}
+.wiki-link{color:var(--acc);cursor:pointer}
+.wiki-link.wiki-missing{color:var(--mut);border-bottom:1px dashed var(--mut)}
+
+#fm-bar{flex-shrink:0;padding:8px 16px;border-top:1px solid var(--bdr);
+  display:none;flex-wrap:wrap;gap:5px;align-items:center}
+.chip{padding:2px 9px;border-radius:12px;font-size:11px;display:inline-block}
+.chip-tag{background:rgba(166,218,149,.14);color:var(--grn)}
+.chip-status{background:rgba(138,173,244,.14);color:var(--acc)}
+.chip-meta{background:rgba(110,115,141,.14);color:var(--mut)}
+
+#empty-state{flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:8px;color:var(--mut)}
+#empty-state p{font-size:18px;font-weight:300}
+#empty-state small{font-size:12px}
+
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <span>Loading Janet WASM&#8230;</span>
+  <small>Fetching runtime from janet-lang.org</small>
+</div>
+
+<div id="app">
+  <aside>
+    <div id="sidebar-top">
+      <button id="btn-new">+ New Note</button>
+      <input id="search" type="search" placeholder="Search&#8230;" autocomplete="off">
+    </div>
+    <ul id="note-list" role="list"></ul>
+  </aside>
+  <main>
+    <div id="note-header">
+      <span id="note-title"></span>
+      <button id="btn-delete">Delete</button>
+    </div>
+    <nav id="tabs">
+      <button class="tab active" data-tab="edit">Edit</button>
+      <button class="tab" data-tab="preview">Preview</button>
+    </nav>
+    <div id="pane-edit">
+      <textarea id="editor" spellcheck="false" placeholder="Write in Markdown&#8230;
+Start with frontmatter:
+---
+title: My Note
+tags: [idea, project]
+status: active
+---"></textarea>
+    </div>
+    <div id="pane-preview"></div>
+    <div id="fm-bar"></div>
+    <div id="empty-state">
+      <p>YANP Notes</p>
+      <small>Create or select a note to get started</small>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ================================================================
+   JANET SOURCE — YANP business logic
+   (embedded as a string; evaluated by Janet WASM at runtime)
+
+   Escape note: inside this JS template literal, Janet's "\n" must
+   be written "\\n", and Janet's "\"" must be written "\\"".
+   ================================================================ */
+const JANET_SRC = `
+
+# Convert a title string to a kebab-case slug
+(defn note-slug [title]
+  (var buf @"")
+  (var sep true)
+  (each byte (string/bytes (string/ascii-lower title))
+    (def c (string/from-bytes byte))
+    (cond
+      (peg/match '(+ :a :d) c)
+        (do (buffer/push buf c) (set sep false))
+      (not sep)
+        (do (buffer/push buf "-") (set sep true))))
+  (def s (string buf))
+  (if (string/has-suffix? "-" s)
+    (string/slice s 0 -2)
+    s))
+
+# Parse YAML-like frontmatter block; returns table of string keys
+(defn parse-frontmatter [content]
+  (def result @{})
+  (def lines (string/split "\\n" content))
+  (when (and (> (length lines) 0) (= (get lines 0) "---"))
+    (var i 1)
+    (while (and (< i (length lines)) (not= (get lines i) "---"))
+      (def line (get lines i))
+      (def colon (string/find ": " line))
+      (when colon
+        (def k (string/trim (string/slice line 0 colon)))
+        (def v (string/trim (string/slice line (+ colon 2))))
+        (if (and (string/has-prefix? "[" v) (string/has-suffix? "]" v))
+          (do
+            (def inner (string/slice v 1 -2))
+            (def items (filter |(not= $ "") (map string/trim (string/split "," inner))))
+            (put result k items))
+          (put result k v)))
+      (set i (+ i 1))))
+  result)
+
+# Return note body with frontmatter block removed
+(defn strip-frontmatter [content]
+  (def lines (string/split "\\n" content))
+  (if (and (> (length lines) 0) (= (get lines 0) "---"))
+    (do
+      (var i 1)
+      (while (and (< i (length lines)) (not= (get lines i) "---"))
+        (set i (+ i 1)))
+      (if (< (+ i 1) (length lines))
+        (string/join (array/slice lines (+ i 1)) "\\n")
+        ""))
+    content))
+
+# Extract all [[wikilink]] targets from content
+(defn extract-wikilinks [content]
+  (or (peg/match
+        ~{:link (* "[[" (capture (some (if-not "]]" 1))) "]]")
+          :main (any (+ :link 1))}
+        content)
+      @[]))
+
+# Wrap a string in double-quotes (for HTML attribute generation)
+(defn dq [s] (string "\\"" s "\\""))
+
+# Replace [[wikilinks]] with <a data-wiki="slug"> anchors
+# known-json: JSON array of known slugs
+(defn process-wikilinks [content known-json]
+  (def known (json/decode known-json))
+  (var result content)
+  (each link (extract-wikilinks content)
+    (def slug (note-slug link))
+    (def exists (not (nil? (find |(= $ slug) known))))
+    (def cls (if exists "wiki-link" "wiki-link wiki-missing"))
+    (def anchor (string "<a class=" (dq cls)
+                         " data-wiki=" (dq slug)
+                         " href=" (dq "#") ">" link "</a>"))
+    (set result (string/replace-all (string "[[" link "]]") anchor result)))
+  result)
+
+# Collect all tags: inline #tags from body + frontmatter tags array
+(defn extract-tags [content]
+  (def fm (parse-frontmatter content))
+  (def body (strip-frontmatter content))
+  (def fm-tags (if (indexed? (get fm "tags")) (get fm "tags") @[]))
+  (def inline-caps
+    (or (peg/match
+          ~{:tag (* "#" (capture (some (+ :a :d (set "-_/")))))
+            :main (any (+ :tag 1))}
+          body)
+        @[]))
+  (def seen @{})
+  (each t inline-caps (put seen (string/ascii-lower t) true))
+  (each t fm-tags   (put seen (string/ascii-lower (string/trim t)) true))
+  (keys seen))
+
+# Search vault: return slugs whose slug/title/body contain query (case-insensitive)
+# notes-json: JSON object {slug: {content, created, modified}}
+(defn search-notes [notes-json query]
+  (def notes (json/decode notes-json))
+  (def q (string/ascii-lower (string/trim query)))
+  (if (= q "")
+    (keys notes)
+    (do
+      (def results @[])
+      (eachp [slug note] notes
+        (def body (or (get note "content") ""))
+        (def fm (parse-frontmatter body))
+        (def title (or (get fm "title") slug))
+        (when (or (string/find q (string/ascii-lower slug))
+                  (string/find q (string/ascii-lower title))
+                  (string/find q (string/ascii-lower body)))
+          (array/push results slug)))
+      results)))
+
+# Return slugs of notes that contain [[wikilinks]] pointing to slug
+(defn inbound-links [slug notes-json]
+  (def notes (json/decode notes-json))
+  (def acc @[])
+  (eachp [s note] notes
+    (when (not= s slug)
+      (each link (extract-wikilinks (or (get note "content") ""))
+        (when (= (note-slug link) slug)
+          (array/push acc s)))))
+  acc)
+
+`;
+
+/* ================================================================
+   Janet WASM bootstrap
+   Module must be defined BEFORE janet.js is loaded so Emscripten
+   picks up our print / postRun callbacks.
+   ================================================================ */
+var _outBuf = '', _errBuf = '', _cap = false;
+var _repl = null, _ready = false;
+
+var Module = {
+  print: function(x) { if (_cap) _outBuf += x + '\n'; },
+  printErr: function(x) {
+    if (_cap) _errBuf += x + '\n';
+    else console.warn('[Janet]', x);
+  },
+  postRun: [function() {
+    _repl = Module.cwrap('repl_input', 'void', ['string']);
+    Module._repl_init();
+    // Evaluate all function definitions (output discarded — _cap is false)
+    _repl(JANET_SRC + '\n');
+    _ready = true;
+    document.getElementById('loading').classList.add('hidden');
+    initApp();
+  }]
+};
+
+// Show a helpful message if Janet fails to load (e.g. CORS / file:// restriction)
+window.addEventListener('error', function(e) {
+  if (!_ready && e.filename && e.filename.includes('janet')) {
+    document.getElementById('loading').innerHTML =
+      '<span style="color:#ed8796">Failed to load Janet WASM</span>' +
+      '<small>Serve this file over HTTP, e.g.:</small>' +
+      '<code style="background:#24273a;padding:6px 12px;border-radius:4px;font-size:13px">' +
+      'python -m http.server' +
+      '</code>' +
+      '<small style="color:#6e738d">' + (e.message || '') + '</small>';
+  }
+});
+</script>
+
+<!-- marked.js loaded first so it's available when initApp runs -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<!-- Janet WASM runtime: auto-fetches janet.wasm from the same origin -->
+<script src="janet.js"></script>
+
+<script>
+/* ================================================================
+   Janet call bridge
+   Calls a Janet function by evaluating (print (json/encode (fn args...)))
+   and capturing stdout. The REPL also prints nil (return of print),
+   which we filter out before JSON.parse.
+   ================================================================ */
+function janetCall(fn, ...args) {
+  if (!_ready) return null;
+  const expr = `(print (json/encode (${fn} ${args.map(a => JSON.stringify(a)).join(' ')})))`;
+  _cap = true;
+  _outBuf = '';
+  _errBuf = '';
+  _repl(expr + '\n');
+  _cap = false;
+  if (_errBuf) console.warn('[Janet ' + fn + ']', _errBuf.trim());
+  const lines = _outBuf.split('\n').filter(l => {
+    const t = l.trim();
+    return t && t !== 'nil';
+  });
+  if (!lines.length) return null;
+  try { return JSON.parse(lines[0]); } catch (e) { return lines[0]; }
+}
+
+/* ================================================================
+   Vault — localStorage persistence
+   Schema: { [slug]: { content: string, created: string, modified: string } }
+   ================================================================ */
+const VAULT_KEY = 'yanp-vault';
+
+function vault() {
+  try { return JSON.parse(localStorage.getItem(VAULT_KEY) || '{}'); }
+  catch (_) { return {}; }
+}
+function saveVault(v) { localStorage.setItem(VAULT_KEY, JSON.stringify(v)); }
+function today() { return new Date().toISOString().slice(0, 10); }
+
+/* ================================================================
+   App state
+   ================================================================ */
+let currentSlug = null;
+let saveTimer = null;
+
+/* ================================================================
+   Sidebar
+   ================================================================ */
+function renderSidebar(query) {
+  if (query === undefined) query = document.getElementById('search').value || '';
+  const v = vault();
+  let slugs = janetCall('search-notes', JSON.stringify(v), query);
+  if (!Array.isArray(slugs)) slugs = Object.keys(v);
+
+  // Sort newest-modified first
+  slugs.sort((a, b) => {
+    const ma = (v[a] || {}).modified || '';
+    const mb = (v[b] || {}).modified || '';
+    return mb.localeCompare(ma);
+  });
+
+  const list = document.getElementById('note-list');
+  list.innerHTML = '';
+  slugs.forEach(slug => {
+    const note = v[slug];
+    if (!note) return;
+    const fm = janetCall('parse-frontmatter', note.content || '') || {};
+    const title = fm.title || slug;
+    const li = document.createElement('li');
+    li.className = 'note-item' + (slug === currentSlug ? ' active' : '');
+    li.innerHTML =
+      `<span class="ni-title">${esc(title)}</span>` +
+      `<span class="ni-date">${note.modified || ''}</span>`;
+    li.addEventListener('click', () => selectNote(slug));
+    list.appendChild(li);
+  });
+}
+
+/* ================================================================
+   Note selection
+   ================================================================ */
+function selectNote(slug) {
+  if (currentSlug && currentSlug !== slug) flushSave();
+  currentSlug = slug;
+
+  const v = vault();
+  const note = v[slug];
+  if (!note) return;
+
+  const fm = janetCall('parse-frontmatter', note.content || '') || {};
+  document.getElementById('note-title').textContent = fm.title || slug;
+  document.getElementById('editor').value = note.content || '';
+
+  showNoteUI(true);
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab && activeTab.dataset.tab === 'preview') {
+    renderPreview(note.content || '');
+  } else {
+    document.getElementById('pane-edit').style.display = 'flex';
+    document.getElementById('pane-preview').style.display = 'none';
+  }
+  renderFmBar(note.content || '');
+  renderSidebar();
+}
+
+function showNoteUI(show) {
+  document.getElementById('note-header').style.display = show ? 'flex' : 'none';
+  document.getElementById('tabs').style.display         = show ? 'flex' : 'none';
+  if (!show) {
+    document.getElementById('pane-edit').style.display    = 'none';
+    document.getElementById('pane-preview').style.display = 'none';
+    document.getElementById('fm-bar').style.display       = 'none';
+  }
+  document.getElementById('empty-state').style.display = show ? 'none' : 'flex';
+}
+
+/* ================================================================
+   Preview tab — wikilink processing + Markdown render
+   ================================================================ */
+function renderPreview(content) {
+  const slugs = JSON.stringify(Object.keys(vault()));
+  let processed = janetCall('process-wikilinks', content, slugs);
+  if (typeof processed !== 'string') processed = content;
+
+  const pane = document.getElementById('pane-preview');
+  pane.innerHTML = `<div class="md">${marked.parse(processed)}</div>`;
+
+  // Wire up wikilink anchor clicks
+  pane.querySelectorAll('[data-wiki]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const s = a.dataset.wiki;
+      if (!vault()[s]) createNote(s.replace(/-/g, ' '), s);
+      selectNote(s);
+    });
+  });
+}
+
+/* ================================================================
+   Frontmatter bar
+   ================================================================ */
+function renderFmBar(content) {
+  const fm = janetCall('parse-frontmatter', content) || {};
+  const bar = document.getElementById('fm-bar');
+  const chips = [];
+  if (fm.status) chips.push(`<span class="chip chip-status">${esc(fm.status)}</span>`);
+  if (fm.date)   chips.push(`<span class="chip chip-meta">${esc(fm.date)}</span>`);
+  if (fm.author) chips.push(`<span class="chip chip-meta">${esc(fm.author)}</span>`);
+  if (fm.due)    chips.push(`<span class="chip chip-meta">due: ${esc(fm.due)}</span>`);
+  const tags = Array.isArray(fm.tags) ? fm.tags : [];
+  tags.forEach(t => chips.push(`<span class="chip chip-tag">#${esc(t)}</span>`));
+  if (chips.length) {
+    bar.style.display = 'flex';
+    bar.innerHTML = chips.join('');
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+/* ================================================================
+   Create note
+   ================================================================ */
+function createNote(title, explicitSlug) {
+  if (!title || !title.trim()) return;
+  title = title.trim();
+  const slug = explicitSlug
+    || janetCall('note-slug', title)
+    || ('note-' + Date.now());
+
+  const v = vault();
+  // Already exists — just navigate
+  if (v[slug]) { selectNote(slug); return; }
+
+  // YANP: reject duplicate titles/aliases
+  for (const s of Object.keys(v)) {
+    const fm = janetCall('parse-frontmatter', v[s].content || '') || {};
+    if ((fm.title || '').toLowerCase() === title.toLowerCase()) {
+      alert(`A note titled "${title}" already exists (slug: ${s}).`);
+      return;
+    }
+    const aliases = Array.isArray(fm.aliases) ? fm.aliases : [];
+    if (aliases.some(a => a.toLowerCase() === title.toLowerCase())) {
+      alert(`"${title}" is already an alias in note "${s}".`);
+      return;
+    }
+  }
+
+  v[slug] = {
+    content:  `---\ntitle: ${title}\ndate: ${today()}\nstatus: draft\n---\n\n`,
+    created:  today(),
+    modified: today()
+  };
+  saveVault(v);
+  renderSidebar();
+  selectNote(slug);
+}
+
+/* ================================================================
+   Auto-save (debounced 400 ms)
+   ================================================================ */
+function flushSave() {
+  if (!currentSlug) return;
+  const content = document.getElementById('editor').value;
+  const v = vault();
+  if (!v[currentSlug]) return;
+  v[currentSlug].content  = content;
+  v[currentSlug].modified = today();
+  saveVault(v);
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    flushSave();
+    const content = document.getElementById('editor').value;
+    renderFmBar(content);
+    // Sync title display with frontmatter
+    const fm = janetCall('parse-frontmatter', content) || {};
+    document.getElementById('note-title').textContent = fm.title || currentSlug || '';
+    renderSidebar();
+  }, 400);
+}
+
+/* ================================================================
+   Tab switching
+   ================================================================ */
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === tab));
+  const editPane    = document.getElementById('pane-edit');
+  const previewPane = document.getElementById('pane-preview');
+  if (tab === 'edit') {
+    editPane.style.display    = 'flex';
+    previewPane.style.display = 'none';
+  } else {
+    editPane.style.display    = 'none';
+    previewPane.style.display = 'block';
+    renderPreview(document.getElementById('editor').value);
+  }
+}
+
+/* ================================================================
+   Delete note (with inbound-link warning — YANP spec)
+   ================================================================ */
+function deleteNote() {
+  if (!currentSlug) return;
+  const v = vault();
+  const inbound = janetCall('inbound-links', currentSlug, JSON.stringify(v));
+  let msg;
+  if (Array.isArray(inbound) && inbound.length) {
+    const names = inbound.slice(0, 3).join(', ') + (inbound.length > 3 ? '…' : '');
+    msg = `"${currentSlug}" is linked from: ${names}.\n\nDelete anyway?`;
+  } else {
+    msg = `Delete "${currentSlug}"?`;
+  }
+  if (!confirm(msg)) return;
+  delete v[currentSlug];
+  saveVault(v);
+  currentSlug = null;
+  showNoteUI(false);
+  renderSidebar();
+}
+
+/* ================================================================
+   Utility
+   ================================================================ */
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/* ================================================================
+   App init — called from Module.postRun after Janet is ready
+   ================================================================ */
+function initApp() {
+  renderSidebar();
+
+  document.getElementById('btn-new').addEventListener('click', () => {
+    const t = prompt('Note title:');
+    if (t && t.trim()) createNote(t.trim());
+  });
+
+  document.getElementById('search').addEventListener('input', e =>
+    renderSidebar(e.target.value));
+
+  document.getElementById('editor').addEventListener('input', scheduleSave);
+
+  document.getElementById('btn-delete').addEventListener('click', deleteNote);
+
+  document.querySelectorAll('.tab').forEach(b =>
+    b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  // Ctrl/Cmd+N → new note
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      e.preventDefault();
+      const t = prompt('Note title:');
+      if (t && t.trim()) createNote(t.trim());
+    }
+  });
+}
+</script>
+</body>
+</html>
